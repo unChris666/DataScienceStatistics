@@ -1,0 +1,90 @@
+#membaca data
+rumah <- read.table("C:/Data/data rumah.txt", header=TRUE)
+View(rumah)
+str(rumah)
+head(rumah)
+ 
+#panggil  library 
+library(lmtest)
+#scatter plot
+plot(rumah$X1, rumah$sales_price)
+
+plot(rumah$X1, rumah$sales_price, 
+     xlab="Finished area of residence (square feet)",
+     ylab="Sales price of residence (dollars)",
+     col="blue",pch=10)
+
+#menghitung korelasi
+cor(rumah$X1, rumah$sales_price)
+
+#model regresi linear sederhana dengan
+#dependent var: sales_price
+#independent var: X1
+lm(sales_price ~ 1 + X1, data=rumah)
+lm(sales_price ~ X1, data=rumah)
+
+model1 <- lm(sales_price ~ 1 + X1, data=rumah)
+summary(model1)
+anova(model1)
+
+##pendugaan parameter
+#dependent var: sales_price
+#independent var: X1
+y <- rumah$sales_price
+X <- cbind(1,rumah$X1)
+#rumus betaduga = (X'X)^-1*X'y
+betaduga <- solve(t(X)%*%X)%*%t(X)%*%y
+betaduga
+
+
+#memprediksi harga rumah seluas 4500
+rumahku <- c(4500)
+rumahku <- data.frame(rumahku)
+colnames(rumahku) <- c("X1")
+predict(model1, newdata=rumahku)
+plot(rumah$X1, rumah$sales_price, 
+     xlab="Finished area of residence (square feet)",
+     ylab="Sales price of residence (dollars)",
+     col="blue")
+points(rumahku$X1, predict(model1, newdata=rumahku), col="red", pch=15)
+
+
+rumahku1 <- c(5000)
+rumahku1 <- data.frame(rumahku1)
+colnames(rumahku1) <- c("X1")
+predict(model1, newdata=rumahku1)
+
+
+rumahku2 <- c(5000,6000)
+rumahku2 <- data.frame(rumahku2)
+colnames(rumahku2) <- c("X1")
+predict(model1, newdata=rumahku2)
+
+
+plot(rumah$X1, rumah$sales_price, 
+     xlab="Finished area of residence (square feet)",
+     ylab="Sales price of residence (dollars)",
+     col="blue")
+lines(rumah$X1,fitted(model1),col="red")
+points(rumahku2$X1, predict(model1, newdata=rumahku2), col="orange", pch=15)
+points(rumahku$X1, predict(model1, newdata=rumahku), col="green", pch=15)
+
+#data
+str(rumah)
+
+
+#regresi linier berganda
+rumah$umur = 2023 - rumah$X7
+str(rumah)
+View(rumah)
+
+
+model2 <- lm(sales_price ~ 1 + X1 + umur, data=rumah)
+summary(model2)
+
+##pendugaan beta
+y <- rumah$sales_price
+X <- cbind(1,rumah$X1,rumah$umur)
+betaduga2 <- solve(t(X)%*%X)%*%t(X)%*%y
+betaduga2
+

@@ -1,0 +1,352 @@
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Linear Model Selection
+
+## Tujuan Praktikum
+
+1. Mahasiswa memahami penggunaan Linear Selection Model
+2. Mahasiswa dapat menerapkan model terbaik Linear Selection Model
+3. Mahasiswa dapat melakukan pengukuran terhadap Linear Selection Model
+
+## Subset Selection
+
+Pada praktikum kali ini kita akan menggunakan Best Subset selection untuk Hitters data. Yang mana kita melakukan prediksi gaji seorang pemain baseball dengan variasi statistik yang mempertimbangkan performa dari tahun lalu.
+
+```{r}
+library(ISLR)
+fix(Hitters)
+names(Hitters)
+```
+Berikut dimensi hitters data
+
+```{r}
+dim(Hitters)
+```
+Apakah terdapat missing data pada atribut salary. kita akan memeriksanya sebagai berikut:
+```{r}
+sum(is.na(Hitters$Salary))
+```
+Kemudian kita menghapus dataset yang missing
+```{r}
+Hitters=na.omit(Hitters)
+dim(Hitters)
+```
+Periksa kembali apakah masih terdapat missing data
+```{r}
+sum(is.na(Hitters))
+```
+Nah, selanjutnya kita akan menerapkan regsubsets() function (yang merupakan bagian dari leaps library). fungsi ini dapat menunnjukkan jumlah prediktor yang diberikan, dimana best merupakan kuantifikasi menggunakan RSS () . Sintaks yang diterapkan juga sama dengan `lm()`. lalu ditampilkan melalui fungsi `summary()`.
+
+```{r}
+library(leaps)
+regfit.full=regsubsets(Salary~., Hitters)
+summary(regfit.full)
+```
+Tanda bintang menunjukkan bahwa variabel yang diberikan termasuk dalam model yang sesuai. Misalnya, keluarannya menunjukkan bahwa model dua variabel hanya mengandung `Hits` dan `CRBI`. secara default, `regsubset()` hanya menampilkan 8 variabel model terbaik. tetapi opsi `nvmax` dapat digunakan untuk menampilkan kembali sebanyak variabel yang diinginkan. Berikut contohnya ketika kita menggunakan 19 variabel model
+
+```{r}
+regfit.full=regsubsets(Salary~., data=Hitters, nvmax=19)
+reg.summary=summary(regfit.full)
+```
+
+fungsi `summary()` juga mengembalikan $R^2$, RSS, dan pengaturan $R^2$, $C_p$, dan BIC. kita akan mencoba menjelaskan model ini dengan memilih best dari semua model.
+
+```{r}
+names(reg.summary)
+```
+Misalnya, kita melihat bahwa statistik $R^2$ meningkat dari 32%, ketika hanya satu variabel yang dimasukkan ke dalam model, menjadi hampir 55%, ketika semua variabel dimasukkan. Seperti yang diharapkan, statistik $R^2$ meningkat secara monoton karena lebih banyak variabel dimasukkan.
+
+```{r}
+reg.summary$rsq
+```
+Melakukan plotting RSS, adjusted $R^2$, $C_p$, dan BIC untuk semua model dapat membantu kita memutuskan model mana yang akan kita gunakan. pada contoh di bawah ini `type="1"` memberikan plot point dengan line.
+
+```{r}
+par(mfrow=c(2,2))
+plot(reg.summary$rss, xlab="Jumlah Variabel", ylab="RSS", type = "l")
+plot(reg.summary$adjr2, xlab="Jumlah Variabel", ylab="Adjusted RSq", type = "l")
+```
+
+Perintah points() bekerja seperti perintah plot(), kecuali bahwa points() menempatkan titik pada plot yang telah dibuat. Fungsi which.max() dapat digunakan untuk mengidentifikasi lokasi titik maksimum vektor. Kita sekarang akan memplot titik merah untuk menunjukkan model dengan statistik $R^2$ terbesar yang disesuaikan.
+
+```{r}
+which.max(reg.summary$adjr2)
+plot(reg.summary$adjr2, xlab="Jumlah Variabel", ylab="Adjusted RSq", type = "l")
+points(11,reg.summary$adjr2[11], col="red", cex=2, pch=20)
+```
+
+Kita juga dapat memplotkan $C_p$ dan BIC statistik,dan indikasi model dengan statistik paling kecil melalui fungsi `which.min()`.
+
+```{r}
+plot(reg.summary$cp, xlab ="Jumlah variabel",ylab="Cp", type="l")
+which.min(reg.summary$cp)
+```
+```{r}
+plot(reg.summary$bic, xlab ="Jumlah variabel",ylab="Cp", type="l")
+points(6, reg.summary$bic[6],col="red", cex=2, pch=20)
+```
+
+fungsi `regsubsets()` merupakan built-in dari package `plot()`. yang mana dapat digunakan untuk memilih variabel untuk model terbaik dengan memberikan jumlah prediktor, urutan peringkat pada BIC, $C_p$, adjusted $R^2$ atau AIC. untuk memeriksa lanjut dapat menggunakan perintah berikut: `?plot.regsubsets`
+
+```{r}
+plot(regfit.full, scale="r2")
+plot(regfit.full, scale="adjr2")
+plot(regfit.full, scale="Cp")
+plot(regfit.full, scale="bic")
+```
+
+Baris atas setiap plot berisi kotak hitam untuk setiap variabel yang dipilih sesuai dengan model optimal yang terkait dengan statistik tersebut. Misalnya, kita melihat bahwa beberapa model berbagi BIC mendekati 150. Namun, model dengan BIC terendah adalah model enam variabel yang hanya berisi AtBat, Hits, Walks, CRBI, DivisionW, dan PutOuts. Kita dapat menggunakan fungsi coef() untuk melihat perkiraan koefisien yang terkait dengan model ini.
+
+```{r}
+coef(regfit.full,6)
+```
+### Forward and Backward Stepwise Selection
+
+kita bisa menggunakan fungsi regsubset() untuk forward stepwise atau backward stepwise selection, dengan menggunakan argumen `method="forward"` atau `method="backward"`.
+```{r}
+regfit.fwd=regsubsets(Salary~.,data=Hitters,nvmax=19,method="forward")
+summary(regfit.fwd)
+regfit.bwd=regsubsets(Salary~.,data=Hitters,nvmax=19,method="backward")
+summary(regfit.bwd)
+```
+Misalnya, kita melihat bahwa menggunakan forward stepwise selection, model satu variabel terbaik hanya berisi `CRBI`, dan model dua variabel terbaik juga mencakup `Hits`. Untuk data ini, model satu variabel hingga enam variabel terbaik masing-masing identik untuk subset terbaik dan seleksi maju. Namun, model tujuh variabel terbaik yang diidentifikasi dengan pemilihan forward stepwise, pemilihan backward stepwise, dan pemilihan subset terbaik berbeda.
+```{r}
+coef(regfit.full,7)
+```
+```{r}
+coef(regfit.full,7)
+```
+```{r}
+coef(regfit.bwd,7)
+```
+### Memilih model dengan menggunakan Pendekatan Validation Set dan Cross Validation
+
+Pendekatan ini bertujuan agar menghasilkan perkiraan yang akurat dari kesalahan pengujian. kita harus menggunakan hanya pengamatan pelatihan untuk melakukan semua aspek pemasangan model—termasuk pemilihan variabel. Oleh karena itu, penentuan model mana dari ukuran tertentu yang terbaik harus dibuat hanya dengan menggunakan pengamatan pelatihan. Jika kumpulan data lengkap digunakan untuk melakukan langkah pemilihan subset terbaik, kesalahan validation set dan kesalahan cross validation yang kita peroleh tidak akan menjadi estimasi akurat dari kesalahan pengujian.
+Untuk menggunakan pendekatan set validasi, kita mulai dengan membagi pengamatan menjadi set pelatihan dan set tes.
+
+```{r}
+set.seed(1)
+train=sample(c(TRUE,FALSE), nrow(Hitters), rep=TRUE)
+test=(!train)
+```
+
+Selanjutnya kita menerapkan `regsubsets()` pada training set untuk memerintahkan best subset selection.
+```{r}
+regfit.best=regsubsets(Salary~., data=Hitters[train,],nvmax = 19)
+```
+
+kemudian untuk validation set 
+```{r}
+test.mat=model.matrix(Salary~.,data=Hitters[test,])
+```
+
+Fungsi `model.matrix()` digunakan di banyak paket regresi untuk membangun model matriks "X" dari data. Sekarang kita menjalankan loop, dan untuk setiap ukuran i, matrix() mengekstrak koefisien dari regfit.best untuk model terbaik dari ukuran itu, mengalikannya ke dalam kolom yang sesuai dari matriks model uji untuk membentuk prediksi, dan menghitung uji MSE.
+
+```{r}
+val.errors=rep(NA,19)
+for(i in 1:19){
+  coefi=coef(regfit.best,id=i)
+  pred=test.mat[,names(coefi)]%*%coefi
+  val.errors[i]=mean((Hitters$Salary[test]-pred)^2)
+}
+```
+
+kita akan mendapatkan hasil model terbaik yang terdiri dari 10 variabel.
+
+```{r}
+val.errors
+```
+```{r}
+which.min(val.errors)
+```
+
+```{r}
+coef(regfit.best,10)
+```
+tidak ada metode predict() untuk regsubsets(). Karena kita akan menggunakan fungsi ini lagi, kita dapat menangkap langkah-langkah kita di atas dan menulis metode prediksi kita sendiri.
+
+```{r}
+predict.regsubsets=function(object,newdata,id,...){
+  form=as.formula(object$call[[2]])
+  mat=model.matrix(form,newdata)
+  coefi=coef(object,id=id)
+  xvars=names(coefi)
+  mat[,xvars]%*%coefi
+}
+```
+
+Terakhir kita akan menjalankan program untuk best subset selection pada full dataset, dan pilih 10 variabel model terbaik. Penting bagi kita untuk menggunakan kumpulan data lengkap untuk mendapatkan estimasi koefisien yang lebih akurat. Perhatikan bahwa kita melakukan pemilihan subset terbaik pada kumpulan data lengkap dan memilih model sepuluh variabel terbaik, daripada hanya menggunakan variabel yang diperoleh dari kumpulan pelatihan, karena model sepuluh variabel terbaik pada kumpulan data lengkap mungkin berbeda dari yang sesuai model pada set pelatihan.
+
+```{r}
+regfit.best=regsubsets(Salary~.,data=Hitters,nvmax=19)
+coef(regfit.best,10)
+```
+Kita sekarang mencoba memilih di antara model dengan ukuran berbeda menggunakan cross validation. Pendekatan ini agak sulit, karena kita harus melakukan pemilihan subset terbaik dalam setiap set pelatihan k. Pertama, kita membuat vektor yang mengalokasikan setiap pengamatan ke salah satu dari k = 10 folds, dan kita membuat matriks tempat kita akan menyimpan hasilnya.
+
+```{r}
+k=10
+set.seed(1)
+folds=sample(1:k,nrow(Hitters),replace=TRUE)
+cv.errors=matrix(NA,k,19, dimnames=list(NULL,paste(1:19)))
+```
+
+kemudian dilakukan loop for untuk cross validation. Pada lipatan ke-j, elemen lipatan yang sama dengan j ada di set pengujian, dan sisanya ada di set pelatihan. Kita membuat prediksi untuk setiap ukuran model (menggunakan metode predict() baru), menghitung error pengujian pada subset yang sesuai, dan menyimpannya di slot yang sesuai di matriks `cv.errors`.
+
+```{r}
+for(j in 1:k){
+  best.fit=regsubsets(Salary~.,data=Hitters[folds!=j,],nvmax=19)
+  for(i in 1:19){
+    pred=predict(best.fit,Hitters[folds==j,],id=i)
+    cv.errors[j,i]=mean((Hitters$Salary[folds==j]-pred)^2)
+  }
+}
+```
+
+hasilnya akan memberi kita matriks 10 × 19, di mana elemen (i, j) sesuai dengan uji MSE untuk lipatan validasi silang ke-i untuk model variabel-j terbaik. Kita menggunakan fungsi apply() untuk menghitung rata-rata kolom matriks ini untuk mendapatkan vektor elemen ke-j adalah cross validation error untuk model variabel-j.
+
+```{r}
+mean.cv.errors=apply(cv.errors,2,mean)
+mean.cv.errors
+```
+```{r}
+par(mfrow=c(1,1))
+plot(mean.cv.errors,type='b')
+```
+
+kita melihat bahwa cross validation memilih 11 variabel model. kita selanjutnya memilih best subset selection pada full dataset untuk menghitung 11 variabel model.
+
+```{r}
+reg.best=regsubsets(Salary~.,data=Hitters,nvmax=19)
+coef(reg.best,11)
+```
+## Ridge Selection dan Lasso
+
+Kita akan menggunakan package glmnet untuk melakukan regresi ridge dan laso. Fungsi utama dalam paket ini adalah glmnet(), yang dapat digunakan glmnet() agar sesuai dengan model regresi ridge, model laso, dan lainnya. Fungsi ini memiliki sintaks yang sedikit berbeda dari fungsi model-fitting lainnya yang telah kita jumpai sejauh ini. Secara khusus, kita harus melewatkan matriks x dan juga vektor y, dan kita tidak menggunakan sintaks y~x.
+
+```{r}
+x=model.matrix(Salary~.,Hitters)[,-1]
+y=Hitters$Salary
+```
+
+Fungsi model.matrix() sangat berguna untuk membuat x; tidak hanya menghasilkan matriks yang sesuai dengan 19 prediktor tetapi juga secara otomatis mengubah variabel kualitatif apa pun menjadi variabel dummy. Properti yang terakhir penting karena glmnet() hanya dapat mengambil input numerik dan kuantitatif.
+
+
+### Ridge Regression
+```{r}
+library(glmnet)
+grid=10^seq(10,-2,length=100)
+ridge.mod=glmnet(x,y,alpha=0,lambda=grid)
+```
+Secara default fungsi glmnet() melakukan regresi ridge untuk rentang nilai lambda yang dipilih secara otomatis. Namun, di sini kita telah memilih untuk mengimplementasikan fungsi pada kisi nilai mulai dari lambda = $10^10$ hingga lambda = $10^-2$, yang pada dasarnya mencakup berbagai skenario dari model nol yang hanya berisi intersep, hingga kuadrat terkecil yang sesuai. Seperti yang akan kita lihat, kita juga dapat menghitung kecocokan model untuk nilai lambda tertentu yang bukan merupakan salah satu dari nilai grid asli. Perhatikan bahwa secara default, fungsi glmnet() membakukan variabel sehingga berada pada skala yang sama. Untuk mematikan pengaturan default ini, gunakan argumen standardize=FALSE.
+
+Terkait dengan setiap nilai lambda adalah vektor koefisien regresi ridge, disimpan dalam matriks yang dapat diakses oleh coef(). Dalam hal ini, adalah 20×100. matriks, dengan 20 baris (satu untuk setiap prediktor, ditambah intersep) dan 100 kolom (satu untuk setiap nilai lambda).
+
+```{r}
+dim(coef(ridge.mod))
+```
+Kita berharap perkiraan koefisien menjadi jauh lebih kecil, dalam hal $l_2$ norm, ketika nilai lambda yang besar digunakan, dibandingkan dengan ketika nilai lambda yang kecil digunakan. koefisien ketika lambda = 11.498, bersama dengan $l_2$ norm:
+
+```{r}
+ridge.mod$lambda[50]
+```
+```{r}
+coef(ridge.mod)[,50]
+sqrt(sum(coef(ridge.mod)[-1,50]^2))
+```
+berikut koefisien ketika lambda =705, bersama dengan $l_2$ norm nya. Perhatikan $l_2$ norm yang jauh lebih besar dari koefisien yang terkait dengan nilai lambda yang lebih kecil ini.
+
+```{r}
+ridge.mod$lambda[60]
+```
+```{r}
+coef(ridge.mod)[,60]
+sqrt(sum(coef(ridge.mod)[-1,60]^2))
+```
+kita dapat menggunakan fungsi predict() untuk beberapa tujuan. seperti, kita dapat menghitung ridge regression coefficient untuk nilai baru dari lambda, katakanlah 50:
+
+```{r}
+predict(ridge.mod,s=50,type="coefficients")[1:20,]
+```
+Selanjutnya kita membagi data menjadi training set dan test set untuk mengestimasi error dari ridge regression dan lasso.
+
+```{r}
+set.seed(1)
+train=sample(1:nrow(x),nrow(x)/2)
+test=(-train)
+y.test=y[test]
+```
+
+kemudian kita lakukan fitting untuk ridge model pada training set dan evaluasi dengan MSE pada test set, menggunakan lambda = 4. gunakan fungsi predict(), ganti argumen type="coefficients" dengan newx argumen
+
+```{r}
+ridge.mod=glmnet(x[train,], y[train], alpha=0, lambda=grid, thresh = 1e-12)
+ridge.pred=predict(ridge.mod, s=4,newx=x[test,])
+mean((ridge.pred-y.test)^2)
+```
+MSE yang dihasilkan adalah 142199,2 . Dapat juga dilakukan perhitungan MSE dengan sintaks berikut
+```{r}
+mean((mean(y[train])-y.test)^2)
+```
+Kita juga bisa mendapatkan hasil yang sama dengan memasang model regresi ridge dengan nilai lambda yang sangat besar. Perhatikan bahwa 1e10 berarti $10^10$.
+
+```{r}
+ridge.pred=predict(ridge.mod, s=1e10, newx=x[test,])
+mean((ridge.pred-y.test)^2)
+```
+Jadi fitting model regresi ridge dengan lambda = 4 mengarah ke tes MSE yang jauh lebih rendah daripada fitting model hanya dengan intersep. Kita sekarang memeriksa apakah ada manfaat untuk melakukan regresi ridge dengan lambda = 4 daripada hanya melakukan regresi kuadrat terkecil. Ingatlah bahwa kuadrat terkecil hanyalah regresi ridge dengan lambda = $0^5$.
+
+Menggunakan CV (Cross validation). Secara default, fungsi cv.glmnet() melakukan cross validation dalam  10 fold, meskipun hal ini dapat diubah menggunakan lipatan argumen. Perhatikan bahwa kita menetapkan seed random terlebih dahulu sehingga hasilnya akan direproduksi, karena pilihan cross validation fold adalah acak.
+
+```{r}
+set.seed (1)
+cv.out =cv.glmnet (x[train ,],y[train],alpha =0)
+plot(cv.out)
+bestlam =cv.out$lambda.min
+bestlam
+```
+
+```{r}
+ridge.pred=predict (ridge.mod ,s=bestlam ,newx=x[test,])
+mean(( ridge.pred -y.test)^2)
+```
+Terakhir kita melakukan fitting dengan model ini pada full dataset, gunakan lambda yang di pilih oleh cross validation:
+```{r}
+out=glmnet(x,y,alpha =0)
+predict(out ,type="coefficients",s=bestlam)[1:20,]
+```
+Seperti yang diharapkan, tidak ada koefisien yang nol—regresi ridge tidak melakukan pemilihan variabel!
+
+### Lasso
+
+Kita melihat bahwa regresi ridge dengan pilihan lambda dapat mengungguli kuadrat terkecil serta model nol pada kumpulan data Hitters. lalu, apakah laso dapat menghasilkan model yang lebih akurat atau lebih dapat ditafsirkan daripada regresi ridge?. Agar sesuai dengan model laso, kita sekali lagi menggunakan fungsi `glmnet()`; namun, kali ini kita menggunakan argumen alpha=1. Selain perubahan itu, kita melanjutkan seperti yang kita lakukan saat fitting model ridge.
+
+
+```{r}
+lasso.mod=glmnet(x[train ,],y[train],alpha =1, lambda =grid)
+plot(lasso.mod)
+```
+
+Kita dapat melihat dari plot koefisien yang bergantung pada pilihan parameter penalaan, beberapa koefisien akan sama persis dengan nol. Kemudian lakukan cross validation dan menghitung kesalahan pengujian.
+
+```{r}
+set.seed (1)
+cv.out =cv.glmnet (x[train ,],y[train],alpha =1)
+plot(cv.out)
+bestlam =cv.out$lambda.min
+lasso.pred=predict(lasso.mod ,s=bestlam ,newx=x[test,])
+mean(( lasso.pred -y.test)^2)
+```
+secara substansial lebih rendah daripada uji MSE dari model nol dan kuadrat terkecil, dan sangat mirip dengan uji MSE regresi ridge dengan lambda dipilih dengan cross validation.
+
+Namun, laso memiliki keunggulan substansial dibandingkan regresi ridge karena perkiraan koefisien yang dihasilkan parse. Di sini kita melihat bahwa 12 dari 19 estimasi koefisien persis nol. Jadi model laso dengan lambda yang dipilih dengan cross validation hanya berisi tujuh variabel.
+
+```{r}
+out=glmnet (x,y,alpha=1, lambda=grid)
+lasso.coef=predict (out ,type ="coefficients",s=bestlam)[1:20,]
+lasso.coef
+```
+

@@ -1,0 +1,313 @@
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Modul 8 Praktikum Statistika Sains Data
+
+## Tujuan Praktikum:
+1. Mahasiswa dapat menerapkan Non-linear model pada regresi polinomial
+
+2. Mahasiswa dapat menerapkan model regresi splines
+
+3. Mahasiswa dapat memahami pengambilan derajad polinom untuk model regresi non-linear
+
+## Model Non-Linear
+
+Pada praktikum modul 8 ini kita akan menerapkan dan memahami langkah dalam melakukan fitting dari model non linear yaitu regresi polinomial dan regresi splines.
+Sebagai percobaan kita menggunakan data 'Wage' dari package ISLR. 
+
+```{r massage=FALSE}
+library(ISLR)
+library(splines)
+library(boot)
+```
+
+Pertama panggil dataset dari package
+```{r}
+attach(Wage)
+```
+
+Pada Gambar di bawah ini menjelaskan observasi pada dataset yang mana education lebih mengecil pada variabel HS, dan ini mengartikan bahwa semakin naik pendapatan (Salary) maka education akan semakin tinggi.
+
+![Gambar 1]("C:/Users/ardik/OneDrive/Dokumen/Modul_6_SSD_1.png")
+
+### Regresi Polynomial dan Step Functions
+
+```{r}
+fit=lm(wage~poly(age,4), data=Wage)
+coef(summary(fit))
+```
+sintaks di atas menjelaskan bahwa model ini tetap menggunakan `lm()` function untuk memprediksi `wage` dengan menggunakan pangkat empat polinomial yaitu `age:poly:(age,4)`. Kemudian perintah dari poly() memperbolehkan kita untuk menghindari penulisan formula yang panjang. fungsi akan mengembalikan sebuah matriks yang mana kolom merupakan basis dari orthogonal polynomials. hal ini mengartikan bahwa setiap kolom adalah kombinasi linear dari variabel `age, age^2, age^3` dan `age^4`.
+
+Bagaimanapun, kita dapat menggunakan fungsi `poly()` untuk menghitung langsung `age, age^2, age^3` dan `age^4`. kita juga dapat melakukan ini dengan memasukkan argumen `raw=TRUE` pada fungsi `poly()`. yang mana arguemn tadi dapat dilihat bahwa tidak mempengaruhi terhadap model yang signifikan.
+
+```{r}
+fit2=lm(wage~poly(age,4,raw=T), data=Wage)
+coef(summary(fit2))
+```
+Terdapat beberapa cara yang sama untuk melakukan fitting model, yang mana menunjukkan flexibilitas dari formula. contohnya:
+
+```{r}
+fit2a=lm(wage~age+I(age^2)+I(age^3)+I(age^4),data=Wage)
+coef(fit2a)
+```
+ini menunjukkan bahwa membuat polinomial dapat menggunakan fungsi wrapper I. adapun cara lainnya dapat menggunakan fungsi `cbind` untuk membuat matriks dari koleksi vektor. fungsi dapat digunakan sebagai wrapper.
+
+```{r}
+fit2b=lm(wage~cbind(age,age^2,age^3,age^4), data=Wage)
+coef(fit2a)
+```
+Selanjutnya kita membuat sebuah grid dari variabel age. untuk memprediksi model kita dapat menggunakan fungsi `predict()` dan juga dapat melakukan pengukuran eror terhadap model ini.
+
+```{r}
+agelims=range(age)
+age.grid=seq(from=agelims[1], to=agelims
+             [2])
+preds=predict(fit,newdata=list(age=age.grid), se=TRUE)
+se.bands=cbind(preds$fit+2*preds$se.fit,preds$fit-2*preds$se.fit)
+```
+
+kemudian kita buat plot data dan menambahkan fit dari pangkat empat polinomial.
+
+```{r}
+par(mfrow=c(1,2), mar=c(4.5,4.5,1,1), oma=c(0,0,4,0))
+plot(age,wage,xlim=agelims,cex=.5, col="darkgrey")
+title("Degre-4 Polynomial", outer=T)
+lines(age.grid,preds$fit,lwd=2,col="blue")
+matlines(age.grid, se.bands,lwd=1,col="blue",lty = 3)
+```
+```{r}
+preds2=predict(fit2,newdata=list(age=age.grid),se=TRUE)
+max(abs(preds$fit-preds2$fit))
+```
+untuk menjalankan regresi polinomial, kita seharusnya memutuskan pangkat berapa yang akan kita gunakan. salah satu cara untuk menjawab pernyataan ini adalah melakukan hipotesis test. Pada model ini kita melakukan fitting model dengan jangkuan dari linear ke pangkat 5 polinomial, dan mencari model yang paling sederhana yang mana cukup menjelaskan hubungan dari `wage` dan `age`. Maka dari itu kita akan menggunakan _Analysis of Variance_ (ANOVA, dengan menggunakan F-test) yang memerintahkan kita untuk melakukan tes null hipotesis bahwa model $M_1$ cukup untuk menjelaskan data terhadap hipotesis alternatif yang memerlukan kompleks model $M_2$. 
+Untuk menggunakan fungsi anova(), $M_1$ dan $M_2$ harus merupakan model bertaut: prediktor di M1 harus merupakan subset dari prediktor di M2. Dalam hal ini, kita mencocokkan lima model berbeda dan secara berurutan membandingkan model yang lebih sederhana dengan model yang lebih kompleks.
+
+```{r}
+fit.1=lm(wage~age,data=Wage)
+fit.2=lm(wage~poly(age,2),data=Wage)
+fit.3=lm(wage~poly(age,3),data=Wage)
+fit.4=lm(wage~poly(age,4),data=Wage)
+fit.5=lm(wage~poly(age,5),data=Wage)
+anova(fit.1,fit.2,fit.3,fit.4,fit.5)
+```
+Membandingkan p-value dengan linear model 1 dengan kuadtratic model 2 yang nilanya menghampiri nol ($<10^{-15}$) menunjukkan bahwa kecocokan linier tidak cukup. Demikian pula p-value yang membandingkan kuadrat model 2 dengan kubik model 3 yang sangat rendah (0,0017), sehingga kecocokan kuadrat juga tidak mencukupi. p-value yang membandingkan polinomial kubik dan derajat-4, Model 3 dan Model 4, kira-kira 5% sedangkan polinomial derajat-5 Model 5 tampaknya tidak diperlukan karena nilai-pnya adalah 0,37. Oleh karena itu, baik polinomial kubik atau kuartik tampaknya memberikan kecocokan yang masuk akal dengan data, tetapi model orde rendah atau tinggi tidak dibenarkan.
+
+Dalam hal ini, alih-alih menggunakan fungsi anova(), kita dapat memperoleh p-value ini secara lebih ringkas dengan mengeksploitasi fakta bahwa poli() membuat polinomial ortogonal.
+
+```{r}
+coef(summary(fit.5))
+```
+Perhatikan bahwa p-value adalah sama, dan faktanya kuadrat t-statistic sama dengan F-statistic dari fungsi anova(); Misalnya:
+
+```{r}
+(-11.983)^2
+```
+Namun, metode ANOVA berfungsi apakah kita menggunakan polinomial ortogonal atau tidak; dan juga berfungsi ketika kita memiliki istilah lain dalam model juga. Misalnya, kita dapat menggunakan anova() untuk membandingkan ketiga model ini:
+
+```{r}
+fit.1=lm(wage~education+age,data=Wage)
+fit.2=lm(wage~education+poly(age,2),data=Wage)
+fit.3=lm(wage~education+poly(age,3),data=Wage)
+anova(fit.1,fit.2,fit.3)
+```
+Sebagai alternatif untuk menggunakan uji hipotesis dan ANOVA, kita dapat memilih derajat polinomial menggunakan validasi silang, seperti yang dibahas di Modul 5. Selanjutnya kita mempertimbangkan tugas memprediksi apakah seseorang berpenghasilan lebih dari $250.000 per tahun.kecuali bahwa pertama kita membuat vektor respons yang sesuai, dan kemudian menerapkan fungsi glm() menggunakan `family="binomial"` agar sesuai dengan model regresi logistik polinomial.
+
+```{r}
+fit=glm(I(wage>250)~poly(age,4),data=Wage, family=binomial)
+```
+
+Perhatikan bahwa kita kembali menggunakan pembungkus I() untuk membuat variabel respons biner ini dengan cepat. Ekspresi Wage>250 dievaluasi menjadi variabel logis yang berisi BENAR dan SALAH, yang glm() memaksa ke biner dengan menyetel BENAR ke 1 dan FALSE ke 0. Sekali lagi, kita membuat prediksi menggunakan fungsi predict().
+
+```{r}
+preds=predict(fit,newdata=list(age=age.grid),se=T)
+```
+
+Namun, menghitung interval kepercayaan sedikit terlibat daripada dalam kasus regresi linier. Jenis prediksi default untuk model glm() adalah `type="link"`, yang kita gunakan di sini. hal ini berarti kita mendapatkan prediksi untuk logit: yaitu sebagai berikut:
+$$\log(\frac{Pr(Y=1|X)}{1-Pr(Y=1|X)})=X\beta$$
+
+dan prediksi yang diberikan berbentuk $X\beta$. Kesalahan standar yang diberikan juga dalam bentuk ini. Untuk mendapatkan interval kepercayaan untuk $Pr(Y=1|X)$, kita menggunakan transformasi sebagai berikut:
+$$Pr(Y=1|X)=\frac{\exp(X\beta)}{1+\exp(X\beta)}$$
+
+```{r}
+pfit=exp(preds$fit)/(1+exp(preds$fit))
+se.bands.logit=cbind(preds$fit+2*preds$se.fit, preds$fit-2*preds$se.fit)
+se.bands=exp(se.bands.logit)/(1+exp(se.bands.logit))
+```
+
+Kita juga dapat langsung melakukan komputasi probabiliti dengan memilih pilihan `type=response` di dalam fungsi `predict()`
+
+```{r}
+preds=predict(fit,newdata=list(age=age.grid),type="response", se=T)
+```
+
+Namun, interval kepercayaan yang sesuai tidak masuk akal karena kita akan berakhir dengan probabilitas negatif! Akhirnya, plot sebelah kanan dari Gambar di bawah ini dibuat sebagai berikut:
+
+```{r}
+plot(age,I(wage>250), xlim=agelims, type = "n", ylim = c(0,.2))
+points(jitter(age),I((wage>250)/5), cex=.5, pch="|", col="darkgrey")
+lines(age.grid,pfit,lwd=2,col="blue")
+matlines(age.grid, se.bands, lwd=1,col="blue",lty=3)
+```
+Kita telah menggambar nilai usia yang sesuai dengan pengamatan dengan nilai upah di atas 250 sebagai tanda abu-abu di bagian atas plot, dan nilai upah di bawah 250 ditampilkan sebagai tanda abu-abu di bagian bawah plot. Kita menggunakan fungsi jitter() untuk sedikit mengubah nilai usia sehingga pengamatan dengan nilai usia yang sama tidak saling menutupi. Ini sering disebut *rug plot*.
+
+kemudian untuk melakukan fitting step function, maka kita dapat menggunakan fungsi `cut()`
+
+```{r}
+table(cut(age,4))
+```
+```{r}
+fit=lm(wage~cut(age,4),data=Wage)
+coef(summary(fit))
+```
+Di sini cut() secara otomatis memilih cutpoint pada usia 33,5; 49; dan 64,5 tahun. Kita juga bisa menentukan cutpoint kita sendiri secara langsung menggunakan opsi break. Fungsi cut() mengembalikan variabel kategori yang diurutkan; fungsi lm() kemudian membuat satu set variabel dummy untuk digunakan dalam regresi. Kategori usia <33,5 tidak dimasukkan, sehingga koefisien intersep sebesar $94.160 dapat diartikan sebagai gaji rata-rata untuk mereka yang berusia di bawah 33,5 tahun, dan koefisien lainnya dapat diartikan sebagai gaji tambahan rata-rata untuk kelompok usia lainnya. Kita dapat menghasilkan prediksi dan plot seperti yang dilakukan dalam kasus kecocokan polinomial
+
+## Splines
+
+kita melihat bahwa splines regresi dapat disesuaikan dengan membuat matriks fungsi basis yang sesuai. Fungsi `bs()` menghasilkan seluruh matriks fungsi dasar untuk splines dengan kumpulan simpul yang ditentukan. Secara default, splines kubik juga diproduksi. Dengan melakukan fitting pada dataset wage dengan age menggunakan spline regresi sederhana adalah sebagai berikut (gunakan package splines):
+```{r}
+fit=lm(wage~bs(age,knots=c(25,40,60)),data=Wage)
+pred=predict(fit,newdata=list(age=age.grid),se=T)
+plot(age,wage,col="gray")
+lines(age.grid,pred$fit,lwd=2)
+lines(age.grid,pred$fit+2*pred$se, lty="dashed")
+lines(age.grid,pred$fit-2*pred$se, lty="dashed")
+```
+Di sini kita telah menentukan simpul pada usia 25, 40, dan 60. dan menghasilkan spline dengan enam fungsi dasar. (Ingat bahwa spline kubik dengan tiga simpul memiliki tujuh derajat kebebasan; derajat kebebasan ini digunakan oleh sebuah intersep, ditambah fungsi enam basis.) Kita juga dapat menggunakan opsi df untuk menghasilkan spline dengan simpul pada kuantil seragam dari data.
+
+```{r}
+dim(bs(age, knots=c(25,40,60)))
+```
+```{r}
+dim(bs(age, df=6))
+```
+```{r}
+attr(bs(age,df=6),"knots")
+```
+Dalam hal ini R memilih simpul pada usia 33,8; 42,0; dan 51,0; yang sesuai dengan persentil usia ke-25, ke-50, dan ke-75. Fungsi `bs()` juga memiliki argumen derajat, jadi kita dapat menyesuaikan spline dengan derajat apa pun, daripada derajat default 3 (yang menghasilkan spline kubik). Agar sesuai dengan spline alami, kita menggunakan fungsi ns(). Di sini kita memasang spline alami dengan empat derajat kebebasan.
+
+```{r}
+fit2=lm(wage~ns(age,df=4),data=Wage)
+pred2=predict(fit2,newdata=list(age=age.grid),se=T)
+plot(age ,wage ,xlim=agelims ,cex =.5, col = "darkgrey")
+lines(age.grid,pred2$fit,col="red",lwd=2)
+title ("Smoothing Spline ")
+fit=smooth.spline(age ,wage ,df =16)
+fit2=smooth.spline(age ,wage ,cv=TRUE)
+```
+```{r}
+fit2$df
+```
+```{r}
+plot(age ,wage ,xlim=agelims ,cex =.5, col = "darkgrey")
+lines(fit ,col ="red",lwd =2)
+lines(fit2 ,col = "blue",lwd =2)
+legend ("topright",legend =c("16 DF" ,"6.8 DF"),
+        col=c("red","blue"),lty =1, lwd =2, cex =.8)
+```
+Perhatikan bahwa dalam panggilan pertama ke `smooth.spline()`, kita menetapkan df=16. Fungsi tersebut kemudian menentukan nilai lambda mana yang menghasilkan 16 derajat kebebasan. Dalam panggilan kedua ke `smooth.spline()`, kita memilih tingkat kehalusan dengan cross validation; dan menghasilkan nilai lambda yang menghasilkan 6,8 derajat kebebasan. 
+
+Untuk melakukan regresi lokal, kita menggunakan fungsi `loess()`
+```{r}
+plot(age ,wage ,xlim=agelims ,cex =.5, col ="darkgrey")
+title (" Local Regression ")
+fit=loess(wage~age,span =.2, data=Wage)
+fit2=loess(wage~age ,span =.5, data=Wage)
+lines(age.grid ,predict (fit ,data.frame(age=age.grid)),
+      col ="red",lwd =2)
+lines(age.grid ,predict (fit2,data.frame(age=age.grid)),
+      col ="blue",lwd =2)
+legend("topright",legend=c("Span=0.2" ,"Span=0.5"),
+        col=c("red","blue"),lty =1, lwd =2, cex =.8)
+```
+
+Di sini kita telah melakukan regresi linier lokal menggunakan rentang 0,2 dan 0,5: yaitu, setiap lingkungan terdiri dari 20% atau 50% dari pengamatan. Semakin besar rentangnya, semakin halus pasnya. Pustaka `locfit` juga dapat digunakan untuk menyesuaikan model regresi lokal di R.
+
+## Cross Validation untuk regresi polinomial
+
+Berikut langkah untuk melakukan fitting regresi polinomial untuk memprediksi variabel wage menggunakan variabel age.
+Dengan menggunakan cross validation untuk memilih derajat optimal untuk polinomial.
+
+```{r}
+set.seed(702)
+deltas = rep(NA, 10)
+for (i in 1:10) {
+  glm.fit = glm(wage~poly(age, i), data=Wage)
+  deltas[i] = cv.glm(Wage, glm.fit, K=10)$delta[1]
+}
+```
+
+```{r}
+deltas
+```
+
+
+```{r}
+plot(1:10, deltas, xlab = "Degree", ylab = "CV Eror", type = "l")
+d.min <- which.min(deltas)
+points(which.min(deltas), deltas[which.min(deltas)], col = "red", cex = 2, pch = 20)
+```
+derajat,d=4 merupakan derajat optimal untuk polinomial yang dipilih oleh cross validation.
+ 
+Kita menggunakan fungsi anova() untuk melakukan test null hypothesis model $M_1$ cukup untuk menjelaskan data terhadap hipotesis altenatif bahwa model yang lebih kompleks $M_2$ diperlukan.
+
+Kita gunakan 10 derajat polinomial untuk ages
+
+```{r}
+lm1 <- lm(wage ~ age, data = Wage)
+lm2 <- lm(wage ~ poly(age, 2), data = Wage)
+lm3 <- lm(wage ~ poly(age, 3), data = Wage)
+lm4 <- lm(wage ~ poly(age, 4), data = Wage)
+lm5 <- lm(wage ~ poly(age, 5), data = Wage)
+```
+
+```{r}
+anova(lm1, lm2, lm3, lm4, lm5)
+```
+
+Anova, P-value, menunjukkan bahwa regresi derajat polinomial tingkat 2, 3 dan 4 memberikan kesesuaian yang wajar dengan data. Diantaranya Polinomial urutan ke-2 memberikan kesesuaian terbaik untuk data. Dimana sebagai metode validasi silang memberikan kecocokan terbaik pada derajat polinominal 4.
+
+```{r}
+plot(wage ~ age, data = Wage, col = "gray")
+agelims <- range(Wage$age)
+age.grid <- seq(from = agelims[1], to = agelims[2])
+poly2 <- lm(wage ~ poly(age, 2), data = Wage)
+preds <- predict(poly2, newdata = list(age = age.grid))
+lines(age.grid, preds, col = "blue", lwd = 2, lty = 1)
+poly4 <- lm(wage ~ poly(age, 4), data = Wage)
+preds4 <- predict(poly4, newdata = list(age = age.grid))
+lines(age.grid, preds4, col = "red", lwd = 2, lty=2)
+legend("topright", legend=c("poly2", "poly4"),
+              col=c("blue", "red"), lty=1:2, cex=0.8)
+title("fig:1-Degree-3 and 9- Polynomial FIT",outer=FALSE)
+```
+Fitting step function untuk memprediksi wage menggunakan age, dan lakukan cross validation untuk memilih jumlah pemotongan yang optimal. Buat plot sesuai yang diperoleh
+
+```{r}
+set.seed(702)
+cvs <- rep(NA, 10)
+for (i in 2:10) {
+    Wage$age.cut <- cut(Wage$age, i)
+    fit <- glm(wage ~ age.cut, data = Wage)
+    cvs[i] <- cv.glm(Wage, fit, K = 10)$delta[1]
+}
+plot(2:10, cvs[-1], xlab = "Cuts", ylab = "Test Error", type = "l")
+d.min <- which.min(cvs)
+points(which.min(cvs), cvs[which.min(cvs)], col = "red", cex = 2, pch = 20)
+title("Fig:2,10-Fold Cross Validation to find optimal cuts",outer=FALSE)
+```
+Cross Validation menunjukkan bahwa kesalahan uji minimum untuk pemotongan optimal adalah k=8 pemotongan. Kemudian training data dengan potongan, k=8
+
+```{r}
+lm.fit = glm(wage~cut(age, 8), data=Wage)
+agelims = range(Wage$age)
+age.grid = seq(from=agelims[1], to=agelims[2])
+lm.pred = predict(lm.fit, data.frame(age=age.grid))
+plot(wage~age, data=Wage, col="gray")
+lines(age.grid, lm.pred, col="darkgreen", lwd=2)
+title("Fig:3, Scatter plot of data with fitted line at cuts=8",outer=FALSE)
+
+```
+

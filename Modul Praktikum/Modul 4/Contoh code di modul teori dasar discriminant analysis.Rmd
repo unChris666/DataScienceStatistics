@@ -1,0 +1,160 @@
+
+# Analisis Diskriminan
+
+Analisis Diskriminan merupakan salah satu analisis multivariat yang bertujuan untuk memisahkan beberapa objek ke dalam beberapa kelompok atau kategori dengan cara membentuk sebuah fungsi yang memaksimalkan pemisahan antar kelompok tersebut yang biasa disebut sebagai fungsi diskriminan. Fungsi diskrimininan merupakan fungsi yang terdiri atas kombinasi liniear berbagai variabel prediktor. Pada nantinya akan terbentuk fungsi diskrimininan sebanyak jumlah kelas atau kategori dikurangi satu yang dapat memisahkan data. 
+
+Lebih lanjut lagi, analisis diskriminan merupakan teknik interdependensi dimana informasi kategori atau kelas data sudah diketahui dan ingin dilihat hubungan kategori atau kelas tersebut dengan variabel prediktor.  Analisis diskriminan digunakan pada kasus dimana variabel respons berupa data kategorik dan variabel prediktor berupa data numerik. Secara umum tujuan dari analisis diskriminan adalah :
+
+* Mengklasifikasikan objek baru ke dalam kelompok berdasarkan fungsi diskriminan yang terbentuk.
+* Mengidentifikasi variabel prediktor yang berkontribusi terhadap pemisahan kelompok data.
+* Membuat fungsi diskriminan yang terdiri atas kombinasi linear berbagai variabel prediktor yang dapat memisahkan objek ke dalam kelompok data. 
+
+## Analisis Diskriminan vs. PCA
+
+Secara umum metode analisis diskriminan serupa dengan metode PCA namun tak sama. Persamaannya adalah kedua metode merupakan metode yang mereduksi dimensi data menjadi dimensi yang lebih kecil dengan cara membentuk sebuah persamaan yang terdiri atas kombinasi linear dari berbagai variabel. Perbedaanya adalah pada 1] analisis diskriminan berfokus untuk membentuk persamaan yang dapat memaksimalkan pemisahan antar kelompok dan analisis ini membutuhkan informasi variabel respons berupa data ketegorik guna membentuk persamaannya. Persamaan ini biasa dinyatakan dalam sebuah fungsi yang dinamakan sebagai **fungsi diskriminan**. Di sisi lain, pada 2] PCA berfokus untuk membentuk persamaan yang dapat memaksimalkan & menjelaskan keragaman data dan analisis ini tidak membutuhkan informasi variabel respons saat membentuk persamaannya. Persamaan ini biasa dinyatakan dalam sebuah fungsi yang dinamakan sebagai **principal component**. Perbedaan kedua metode dapat dilihat pada grafik dibawah.
+
+\n
+![](picture1.png)
+
+
+## Asumsi pada Analisis Diskriminan
+
+Berbagai asumsi yang diterapkan ketika melakukan analisis diskriminan adalah :
+
+**1. Variabel Prediktor berdistribusi Multivariate Normal.**
+
+Uji ini dapat dilakukan dengan mengamati grafik Chi-Square QQ Plot. Jika pada grafik terbentuk garis linear X = Y, maka dapat dikatakan variabel prediktor berdistribusi multivariate normal.
+
+**2. Matriks Ragam-peragam Variabel Prediktor Antar Kelompok Sama.** 
+
+Dalam prakteknya terdapat kelonggaran pada asumsi ini. Asumsi ini berlaku jika ingin membuat fungsi diskriminan yang linear, namun jika ia tidak terpenuhi atau matriks ragam-peragamnya tidak sama, maka solusi yang dapat dilakukan adalah dengan model diskriminan yang kuadratik. 
+Hipotesis pada asumsi ini adalah :
+$$H_{0} : \sum_{1} = \sum_{2} = ... = \sum_{p}$$ 
+$$H_{1} : minimal\ terdapat \ satu\ matriks\ ragam-peragam\ yang\ berbeda $$ 
+
+**3. Terdapat Perbedaan Rata-rata Antar Kelompok Data.**
+
+Untuk menguji apakah terdapat perbedaan antar kelompok data, dapat menggunakan Uji Manova atau statistik uji *Wilk's Lambda*. 
+
+Hipotesis pada asumsi ini adalah :
+
+$$H_{0} : \mu_{1} = \mu_{2} = ... = \mu_{p}$$ 
+
+$$H_{1} : minimal\ terdapat \ satu\ rata-rata \ yang\ berbeda$$ 
+
+## Ukuran Performa Model
+
+Digunakan untuk mengetahui seberapa besar keakurasian model dalam mengklasifikasi suatu objek. Ukuran yang digunakan adalah *Hit Ratio* atau *Apparent Error Rate (APER)*. &*Hit Ratio* merupakan proporsi objek yang diklasifikasikan benar oleh model, sedangkan *APER* kebalikannya, yaitu proporsi objek yang diklasifikan salah oleh model. Untuk memudahkan dalam pengitungannya, perlu dibuat sebuah *Confusion Matrix*, yaitu matriks tabulasi silang antara kategori sebenarnya dengan kategori yang diprediksi oleh model.
+
+|        |         | Predicted | Predicted |
+|--------|:-------:|----------:|-----------|
+|        |         |  Group 1  |  Group 2  |
+| **Actual** | Group 1 |     $$n_{C1}$$      |     $$n_{M1}$$      |
+| **Actual** | Group 2 |     $$n_{M2}$$      |     $$n_{C2}$$      |
+
+Nilai *Hit Ratio* dapat dihitung dengan rumus :
+
+$$Hit \ Ratio \ = 
+\frac{n_{C1}+n_{C2}}{n_{C1}+n_{M1}+n_{M2}+n_{C2}}$$
+
+Sedangkan *APER* dapat dihitung dengan rumus :
+
+$$APER \ = 
+1 - Hit \ Ratio$$
+
+# Contoh Kasus : Pengelompokkan Species Bunga pada Dataset Iris.  
+
+Data yang digunakan adalah data Iris yang sudah termuat di dalam R. Data Iris terdiri atas 150 pengamatan bunga Iris dengan variabel : 1] Sepal Length, 2] Sepal Width, 3] Petal Length, 4] Petal Width, dan 5] Species dari bunga Iris tersebut. Tujuan dilakukan analisis adalah untuk mengelompokkan spesies bunga Iris berdasarkan informasi yang tertera dengan metode Analisis Diskriminan.
+
+**syntax** yang ada di artikel ini dapat diunduh [disini](https://github.com/nadhifanhf/Multivariate-R.git)
+
+## Load Library dan Dataset
+```{r Import libraries, message=FALSE, warning=FALSE}
+library(DT)     #Menampilkan tabel agar mudah dilihat di browser
+library(MVN)    #Uji multivariate normal
+library(MASS)   #Fungsi diskriminan analisis
+library(biotools) #Melakukan uji Box-M
+```
+```{r}
+data("iris")
+datatable(iris)
+```
+
+## Pengujian Asumsi
+
+**Multivariate Normal**
+
+Ketika menguji apakah variabel prediktor berdistribusi multivariate normal, di R dapat menggunakan fungsi `mvn`. Pengujian dilakukan hanya pada variabel prediktor (berskala numerik). 
+
+```{r, results = 'hide'}
+mvn(data = iris[, c(1:4)], multivariatePlot = 'qq') #hanya mengambil kolom variabel prediktor
+```
+
+
+Dari grafik Chi-Square QQ Plot diatas, dapat dilihat bahwasanya secara umum terbentuk garis linear X = Y, maka dapat dikatakan bahwa data berdistribusi multivariate normal.
+
+**Matriks Ragam-peragam antar Kategori Spesies Sama**
+
+Untuk menguji apakah matriks ragam-peragam antar kategori spesies sama, digunakan statistik uji Box's M. untuk melakukan uji statistik Box's M di R dapat menggunakan fungsi `boxM`.
+```{r}
+boxM(data = iris[, c(1:4)], grouping = iris[,5])
+```
+
+Output diatas menunjukkan bahwa dengan tingkat signifikansi 5%, didapat keputusan untuk menolak hipotesis nol atau dengan kata lain terdapat perbedaan matriks ragam-peragam antar kategori spesies. Solusinya adalah menggunakan model diskriminan kuadratik, namun pada contoh ini mengabaikan asumsi ini sehingga tetap menggunakan model diskriminan linear.
+
+**Terdapat perbedaan rata-rata antar kategori spesies**
+
+Untuk menguji apakah terdapat perbedaan rata-rata (nilai variabel prediktor) antar kategori spesies, digunakan Uji Manova dengan statistik uji *Wilk's Lambda* . Untuk melakukan uji tersebut di R dapat menggunakan fungsi `manova` dan mengisikan Wilks pada parameter `test`.
+```{r}
+m <- manova(formula = cbind(iris$Sepal.Length, iris$Sepal.Width, iris$Petal.Length,
+                            iris$Petal.Width) ~ iris$Species)
+summary(object = m, test = 'Wilks')
+
+```
+Output diatas menunjukkan bahwa dengan tingkat signifikansi 5%, didapat keputusan untuk menolak hipotesis nol atau dengan kata lain terdapat perbedaan rata-rata (nilai variabel prediktor) antar kategori spesies.
+
+## Memulai Analisis Diskriminan
+
+### Membagi dataset ke dalam Training dan Test.
+
+Training Data digunakan untuk membuat model diskriminan sedangkan Testing Data digunakan untuk mengevaluasi performa model diskriminan yang terbentuk. Pada contoh ini, dataset Iris akan dibagi menjadi 75% sebagai Training Data dan 25% sebagai Test Data.
+
+```{r}
+set.seed(123)
+train_index <- sample(seq(nrow(iris)), size = floor(0.75 * nrow(iris)), replace = F)
+training_data <- iris[train_index, ] 
+test_data <- iris[-train_index, ]
+```
+
+### Membentuk fungsi diskriminan
+
+Di dalam R, untuk melakukan analisis diskriminan dapat menggunakan fungsi `lda` yang terdapat pada library `MASS`. Model yang dibentuk berdasarkan data yang terdapat pada Training Data.
+
+```{r}
+linearDA <- lda(formula = Species ~., data = training_data)
+linearDA
+```
+
+Beberapa output dari fungsi `lda` adalah sebagai berikut =
+
+* `means`  = rata-rata nilai variabel prediktor pada tiap grup
+* `priors` = peluang yang digunakan (jika tidak disebutkan, maka menggunakan proposi tiap grup)
+* `scalling` = matriks yang berisikan fungsi diskriminan yang dinormalkan
+
+Untuk mengetahui variabel mana yang berpengaruh terhadap perbedaan spesies bunga, salah satu caranya adalah dengan melihat plot antara fungsi diskriminan.
+
+```{r}
+plot(linearDA, col = as.integer(training_data$Species))
+```
+
+Dilihat dari plot diatas, dapat dikatakan secara umum model mampu mengelompokkan data dengan baik walaupun terdapat sedikit overlap pada kategori Versicolor dan Virginica. Dapat dilihat pula fungsi diskriminan LD1 berperan besar dalam membedakan antara kategori bunga, sedangkan fungsi diskriminan LD2 tidak berperan besar dalam membedakan kategori bunga. Semakin besar nilai yang didapat dari LD1 maka suatu bunga cenderung kepada kategori Setosa, sebaliknya jika semakin kecil nilainya maka suatu bunga cenderung kepada ketegori Versicolor ataupun Virginica. Dilihat dari persamaan LD1, variabel Sepal (length dan width) mempunyai nilai positif sedangkan variabel Petal (length dan width) mempunyai nilai yang negatif. Hal ini mengindikasikan bahwa jika suatu bunga memiliki nilai Sepal Length dan Sepal Width yang tinggi, maka bunga tersebut cenderung akan masuk dalam kategori Setosa. Sebaliknya, jika ia memiliki nilai Petal Length dan Petal Width yang tinggi, maka bunga tersebut cenderung akan masuk dalam kategori Versicolor atau Virginica.
+
+### Melakukan prediksi di Test Data dan Menguji Performa Model yang dibuat
+
+Untuk melakukan prediksi menggunakan fungsi `predict` dari model yang diterapkan kepada Test Data. 
+```{r}
+predicted <- predict(object = linearDA, newdata = test_data)
+table(actual = test_data$Species, predicted = predicted$class)
+```
+
+Secara keseluruhan model cocok diterapkan, karena model dapat mengklasifikasikan dengan benar seluruh objek yang berada pada Test Data. Nilai Hit Ratio yang diperoleh adalah 1.

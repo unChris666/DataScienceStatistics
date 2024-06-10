@@ -1,0 +1,205 @@
+---
+title: "Modul 8 Praktikum Statistika Sains Data"
+author: "Sains Data Institut Teknologi Sumatera"
+date: "2023-04-26"
+output: pdf_document
+---
+
+Tujuan Praktikum:
+
+1. Mahasiswa dapat menggunakan model decision tree
+
+2. Mahasiswa dapat menerapkan regresi tree untuk melakukan prediksi model
+
+3. Mahasiswa dapat menggunakan model random forest
+
+
+# Decision Tree
+
+Tree library digunakan untuk membangun model klasifikasi dan regression trees.
+
+``` {r setup, include = FALSE}
+rm(list = ls(all = TRUE))
+
+libs <- c("tidyverse", "tree", "ISLR", 'stringr', 'MASS', 'randomForest')
+invisible(lapply(libs, library, character.only = TRUE))
+```
+
+
+Pada praktikum ini akan menggunakan pohon klasifikasi untuk menganalisis kumpulan data Carseats. Dalam data ini, Penjualan adalah variabel kontinu, jadi kita mulai dengan mengodekannya kembali sebagai variabel biner. Kita menggunakan fungsi ifelse() untuk membuat sebuah variabel, yang disebut ifelse() High, yang mengambil nilai Ya jika variabel Penjualan melebihi 8, dan sebaliknya mengambil nilai No.
+
+```{r data, message = FALSE}
+data <- Carseats %>%
+  mutate(high = factor(if_else(Sales > 8, 1, 0)))
+
+names(data) <-str_to_lower(names(data))
+```
+
+
+Kita sekarang menggunakan fungsi tree() agar sesuai dengan pohon klasifikasi untuk memprediksi 'High' tree() menggunakan semua variabel kecuali Sales(Penjualan). Sintaks fungsi tree() sangat mirip dengan fungsi lm().
+
+```{r creating the tree}
+# Set up initial tree
+tree <- tree(high ~ . -sales, data)
+```
+
+Keluaran dari pohon ini disimpan dalam sebuah list, yang dapat kita rangkum untuk melihat variabel yang digunakan dalam simpul internal, jumlah simpul terminal, dan tingkat kesalahan pelatihan. Anda juga bisa memanggil objek itu sendiri untuk mendapatkan seluruh representasi pohon. Node terminal dilambangkan dengan tanda bintang.
+
+Fungsi summary() mencantumkan variabel yang digunakan sebagai node internal di pohon, jumlah node terminal, dan tingkat kesalahan (pelatihan).
+
+```{r}
+summary(tree)
+```
+Kita tahu bahwa tree dapat dengan mudah diinterpretasikan secara visual, jadi mari kita lihat seperti apa test case kita. Berhati-hatilah saat melakukan plotting karena pohon dapat dengan mudah tumbuh di luar kendali dan membuat grafik tidak dapat dibaca.
+
+```{r, echo = FALSE}
+plot(tree)
+text(tree, pretty = 0, cex = .65, digits = 1)
+```
+Untuk mengevaluasi pohon klasifikasi, kita perlu menggunakan set pelatihan dan pengujian. Sekarang mari ulangi apa yang kita lakukan di atas, kali ini termasuk perhitungan tingkat kesalahan pengujian.
+
+```{r}
+# Define our training/testing sets
+set.seed(2)
+train <- sample_n(data, 200)
+test <-  setdiff(data, train)
+
+# Run the recursive partioning algorithm
+ttree <- tree(high ~. -sales, data = train)
+
+# Make predictions and display confusion matrix
+test_predictions <- predict(ttree, test, type = 'class')
+table(test_predictions, test$high)
+
+(86 + 57) / 200
+
+```
+Kita sekarang dapat menambahkan lapisan kerumitan lain dengan memangkas (pruning) hasilnya. Ingatlah bahwa pohon yang tidak dipruning rentan terhadap overfitting data, jadi metode kita adalah mengamati variasi dalam tingkat kesalahan pengujian saat kita meningkatkan penalti dalam jumlah node terminal. Dapat dilihat pada algoritma berikut:
+
+## Algoritma Pruning
+
+1. Tumbuhkan pohon asli $T_0$ menggunakan data pelatihan.
+
+2. Sebagai fungsi dari $\alpha$ (parameter pinalti), tentukan urutan yang terbaik
+subpohon
+
+3. Gunakan validasi silang K-fold untuk menemukan $\alpha$ yang meminimalkan
+kesalahan prediksi rata-rata kuadrat rata-rata dari $k$th fold data pelatihan
+
+4. Temukan subpohon terbaik dari Langkah 2 menggunakan $\alpha$ yang ditemukan di langkah sebelumnya.
+
+Selanjutnya, kita mempertimbangkan apakah pemangkasan pohon dapat memberikan hasil yang lebih baik. Fungsi cv.tree() melakukan validasi silang untuk cv.tree() menentukan tingkat kompleksitas pohon yang optimal; Pemangkasan kompleksitas yang digunakan untuk memilih urutan pohon untuk dipertimbangkan. Kita menggunakan argumen FUN=prune.misclass untuk menunjukkan bahwa kami ingin tingkat kesalahan klasifikasi memandu proses validasi silang dan pemangkasan, daripada default untuk fungsi cv.tree(), yang merupakan penyimpangan. Fungsi cv.tree() melaporkan jumlah node terminal dari setiap pohon yang dianggap (ukuran) serta tingkat kesalahan yang sesuai dan nilai dari parameter kompleksitas yang digunakan.
+
+```{r}
+set.seed(3)
+cv_tree <- cv.tree(ttree, FUN = prune.misclass)
+cv_tree
+```
+Yang paling penting dalam hasil ini adalah `$dev`, yang sesuai dengan kesalahan validasi silang di setiap instance. Kita dapat melihat bahwa nilai terkecil terjadi ketika ada 21 node terminal. Mari kita lihat sekilas bagaimana kesalahan bervariasi dalam jumlah node terminal kita:
+
+```{r, echo = FALSE}
+ggplot(data = data.frame(cv_tree$size, cv_tree$dev),
+  aes(x = cv_tree$size, y = cv_tree$dev)) +
+  geom_line(color = "darkblue") +
+  labs(x = "Tree Size", y = "Number of Errors", title = "CV Error by Tree Size") +
+  theme(plot.title = element_text(hjust = .5))
+```
+Sekarang setelah kita tahu berapa tepatnya node terminal yang kita inginkan, kita pangkas pohon kita dengan `prune.misclass()` untuk mendapatkan pohon yang optimal. Kemudian, periksa untuk melihat apakah pohon ini berperforma lebih baik pada set pengujian daripada pohon dasar $T_0$.
+
+```{r}
+pruned <- prune.misclass(ttree, best = 21)
+
+test_predictions <- predict(pruned, data = test, type = 'class')
+table(test_predictions, test$high)
+
+(94 + 60) / 200
+```
+# Fitting Regression Tree
+
+Tidak banyak perubahan dalam hal kode ketika kita beralih ke pohon regresi, jadi bagian ini akan menjadi rekap dari yang sebelumnya, hanya menggunakan data yang berbeda. Kita menggunakan data `Boston` dari library `MASS` untuk latihan ini.
+
+```{r}
+Boston <- MASS::Boston
+set.seed(1)
+train <- sample_frac(Boston, .5) 
+test <-  setdiff(Boston, train)
+
+tree_train <- tree(medv ~ ., data = train)
+summary(tree_train)
+```
+```{r}
+plot(tree_train)
+text(tree_train, pretty = 0, cex = .65)
+```
+
+Seperti yang Anda lihat `lstat < 14.405` adalah partisi pertama di pohon ini. Variabel mengukur persentase individu dengan status sosial ekonomi yang lebih rendah di daerah terdekat. Berdasarkan dari node terminal yang berasal dari sisi kiri pohon, ini menunjukkan bahwa wilayah geografis sosial ekonomi yang lebih tinggi berakhir dengan harga rumah rata-rata yang jauh lebih besar.
+
+Kita sekarang dapat melanjutkan untuk melihat apakah pemangkasan akan meningkatkan kinerja pohon ini
+
+```{r}
+cv_tree <- cv.tree(tree_train)
+
+# Get an idea of change in error by changing tree size
+ggplot(data = data.frame(cv_tree$size, cv_tree$dev),
+  aes(x = cv_tree$size, y = cv_tree$dev)) +
+  geom_line(color = "darkblue") +
+  labs(x = "Tree Size", y = "Number of Errors", title = "CV Error by Tree Size") +
+  theme(plot.title = element_text(hjust = .5))
+
+# Predict, plot, and calculate MSE
+yhat <- predict(tree_train, newdata = test)
+test_outcomes <- test$medv
+
+plot(yhat, test_outcomes)
+
+mean((yhat - test_outcomes)^2)
+
+```
+
+# Bagging dan Random Forests
+
+Kita akan menggunakan data yang sama dari bagian sebelumnya dan paket `randomForest` untuk membantu kita menyelesaikan beberapa contoh sederhana. Kita mulai dengan contoh 'bagging', di mana semua prediktor digunakan di setiap pemisahan.
+
+```{r}
+set.seed(1)
+train <- sample_frac(Boston, .5) 
+test <-  setdiff(Boston, train)
+
+# Set up the randomForest for the bagging case (all vars included)
+bag <- randomForest(medv ~ ., data = train,
+                    mtry = 13, importance = TRUE) 
+bag
+
+# Calculate MSE of the testing set for the bagged regression tree
+yhat <- predict(bag, test)
+mean((yhat - test$medv)^2)
+```
+
+Bandingkan MSE dari bagged random forest dengan pohon tunggal yang dipangkas secara optimal yang ditemukan di decision tree/regression tree - jauh lebih rendah. Kita secara manual mengubah jumlah variabel pada setiap pemisahan dalam contoh bagging di atas, tetapi kita dapat mencapai hasil yang lebih baik dengan menggunakan raandom forest yang lebih umum. Secara default, `randomForest` menggunakan variabel $p/3$ saat membangun hutan pohon regresi dan $\sqrt p$ untuk pohon klasifikasi.
+
+Dalam contoh berikut, kita akan menggunakan `mtry=6` ($m\approx p/2$).
+
+```{r}
+forest <- randomForest(medv ~., data = train, mtry = 6, importance = TRUE)
+
+yhat <- predict(forest, test)
+mean((yhat - test$medv)^2)
+```
+
+Kita menemukan bahwa pendekatan ini berhasil - MSE kita sekarang dikurangi menjadi 19,88, lebih rendah dari dua metode sebelumnya yang kita coba.
+
+Setelah kita menemukan hutan yang memadai, kita dapat memeriksa seberapa penting setiap variabel menggunakan `importance()`.
+
+```{r}
+importance(forest)
+```
+
+Kolom pertama mewakili rata-rata penurunan akurasi prediksi ketika variabel dihapus dari model, dan kolom kedua adalah ukuran penurunan total ketidakmurnian simpul yang dihasilkan dari pemisahan variabel tersebut (rata-rata
+atas semua pohon)
+
+`randomForest::varImpPlot()` memplot langkah-langkah penting ini untuk kita
+
+```{r}
+varImpPlot(forest)
+```
+

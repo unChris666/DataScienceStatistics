@@ -1,0 +1,520 @@
+---
+title: "Modul 3 Statistika Sains Data"
+output:
+  word_document: default
+  pdf_document: default
+  html_document:
+    df_print: paged
+date: "2023-03-06"
+pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Teknik Resampling
+
+Memperkirakan performa generalisasi algoritma pembelajaran mesin pada tugas tertentu memerlukan data tambahan yang tidak digunakan selama pelatihan. Teknik Resampling mengacu pada proses berulang kali membagi data yang tersedia menjadi set pelatihan dan pengujian untuk memungkinkan estimasi kinerja yang tidak memiliki bias. Pada praktikum ini akan memperkenalkan strategi resampling umum dan mengilustrasikan penggunaannya dengan ekosistem mlr3. Benchmarking dibangun berdasarkan resampling, mencakup perbandingan yang adil dari beberapa algoritma pembelajaran mesin pada setidaknya dilakukan dalam satu tugas. Yang mana menunjukkan bagaimana pembandingan dapat dilakukan dalam ekosistem mlr3, mulai dari konstruksi desain pembandingan hingga analisis statistik dari hasil pembandingan.
+
+Dalam Supervised learning, model yang diterapkan dalam praktiknya diharapkan dapat menggeneralisasi dengan baik ke data baru yang tidak terlihat. Estimasi akurasi dari apa yang disebut kinerja generalisasi ini sangat penting untuk banyak aspek aplikasi dan penelitian pembelajaran mesin — apakah kita ingin membandingkan secara adil algoritma baru dengan algoritma yang sudah ada atau untuk menemukan algoritma terbaik untuk tugas tertentu setelah dilakukan penyetelan — yang mana selalu mengandalkan perkiraan kinerja ini. Oleh karena itu, estimasi kinerja adalah konsep dasar yang digunakan untuk pemilihan model, perbandingan model, dan penyetelan hyperparameter dalam pembelajaran mesin yang diawasi (Supervised Learning). Untuk menilai kinerja generalisasi model dengan benar, pertama-tama kita harus memutuskan ukuran kinerja yang sesuai untuk tugas dan tujuan evaluasi kita. Ukuran kinerja biasanya menghitung skor numerik yang menunjukkan, misalnya, seberapa cocok prediksi model dengan kebenaran dasar. Namun, itu juga dapat mencerminkan kualitas lain seperti waktu untuk melatih model.
+
+Setelah kita memutuskan ukuran kinerja, langkah selanjutnya adalah mengadopsi strategi yang menentukan cara menggunakan data yang tersedia untuk memperkirakan kinerja generalisasi. Sayangnya, menggunakan data yang sama untuk melatih dan menguji model adalah strategi yang buruk karena akan menghasilkan estimasi performa yang terlalu optimis. Misalnya, model overfitted mungkin sangat cocok dengan data yang dilatihnya, tetapi mungkin tidak dapat digeneralisasikan dengan baik ke data baru. Menilai kinerjanya menggunakan data yang sama dengan yang dilatihnya akan secara menyesatkan menyarankan model yang berkinerja baik. Oleh karena itu, merupakan praktik umum untuk menguji model pada data independen yang tidak digunakan untuk melatih model. Namun, kita biasanya melatih model yang diterapkan pada semua data yang tersedia, yang tidak menyisakan data untuk menilai kinerja generalisasinya. Untuk mengatasi masalah ini, strategi estimasi kinerja yang ada menahan sebagian dari data yang tersedia untuk tujuan evaluasi. Kumpulan tes yang disebut ini berfungsi sebagai data yang tidak terlihat dan digunakan untuk memperkirakan kinerja generalisasi.
+
+Strategi sederhana yang umum adalah metode holdout, yang secara acak mempartisi data menjadi satu set pelatihan dan pengujian menggunakan rasio pemisahan yang telah ditentukan sebelumnya. Set pelatihan digunakan untuk membuat model perantara, yang tujuan utamanya adalah untuk memperkirakan kinerja menggunakan set tes. Estimasi performa ini kemudian digunakan sebagai proksi untuk performa model akhir yang dilatih pada semua data yang tersedia dan diterapkan dalam praktik. Idealnya, set pelatihan harus sebesar semua data yang tersedia sehingga model perantara mewakili model akhir dengan baik. Jika data pelatihan jauh lebih kecil, model perantara mempelajari hubungan yang kurang kompleks dibandingkan dengan model akhir, menghasilkan perkiraan kinerja yang bias secara pesimistis. Di sisi lain, kita juga menginginkan sebanyak mungkin data uji untuk memperkirakan kinerja generalisasi secara andal. Namun, kedua tujuan tersebut tidak mungkin jika kita hanya memiliki akses ke data dalam jumlah terbatas.
+
+Untuk mengatasi masalah ini, strategi resampling berulang kali membagi semua data yang tersedia menjadi beberapa set pelatihan dan pengujian, dengan satu pengulangan sesuai dengan apa yang disebut iterasi resampling di mlr3. Model perantara kemudian dilatih pada setiap set pelatihan dan set tes yang tersisa digunakan untuk mengukur kinerja di setiap iterasi resampling. Performa generalisasi akhirnya diestimasi oleh performa rata-rata selama beberapa iterasi resampling (lihat Gambar untuk ilustrasi). Metode resampling memungkinkan penggunaan lebih banyak titik data untuk pengujian, sekaligus mempertahankan set pelatihan sebesar mungkin. Secara khusus, mengulangi proses pemisahan data memungkinkan penggunaan semua titik data yang tersedia untuk menilai kinerja, karena setiap titik data dapat dipastikan menjadi bagian dari set pengujian setidaknya dalam satu iterasi resampling. Jumlah iterasi resampling yang lebih tinggi dapat mengurangi varians dan menghasilkan estimasi performa yang lebih andal. Hal ini juga mengurangi risiko perkiraan kinerja yang sangat dipengaruhi oleh pembagian yang tidak menguntungkan yang tidak mencerminkan distribusi data asli dengan baik, yang merupakan masalah yang diketahui dari metode holdout. Namun, karena strategi resampling membuat beberapa model perantara yang dilatih pada bagian berbeda dari data yang tersedia dan rata-rata kinerjanya, mereka mengevaluasi kinerja algoritma pembelajaran yang menginduksi model ini, daripada kinerja model akhir yang digunakan dalam praktik. Oleh karena itu penting untuk melatih model perantara pada hampir semua titik data dari distribusi yang sama sehingga model perantara dan model akhir serupa. Jika kita hanya memiliki akses ke data dalam jumlah terbatas, yang terbaik yang dapat kita lakukan adalah menggunakan kinerja algoritma pembelajaran sebagai proxy untuk kinerja model akhir. Pada praktikum ini, kita akan belajar bagaimana memperkirakan performa generalisasi dari seorang Pelajar dengan menggunakan package mlr3.
+
+![]("C:/Users/ardik/OneDrive/Dokumen/ml_abstraction-2.jpg")
+
+## Impor Library
+
+install package berikut jika belum di pasang sebelumnya.
+```{r eval=FALSE}
+install.packages("tidyverse")
+install.packages("mlr3verse")
+install.packages("mlr3tuning")
+install.packages("paradox")
+install.packages("kknn")
+install.packages("ggpubr")
+
+```
+
+Lalu panggil library yang digunakan:
+
+```{r message:FALSE}
+library(tidyverse)
+library(mlr3verse)
+library(mlr3tuning)
+library(smotefamily)
+```
+
+## Impor Data di R
+
+download data:
+[Diabetes Data](https://drive.google.com/file/d/12-IO75QjLf3ZZguj995zrWm4pFcR__pk/view?usp=sharing)
+
+```{r}
+setwd("c:/Users/ardik/OneDrive/Pythonenv/Praktikum SSD")
+diabetes <- read.csv("diabetes.csv",stringsAsFactors = TRUE)
+diabetes <- diabetes %>% mutate(across(where(is.integer),as.numeric))
+glimpse(diabetes)
+
+```
+Kita akan menerapkan metode holdout dengan secara manual mempartisi data yang terdapat dalam objek Task (sebelumnya disebut Tugas) ke dalam satu set pelatihan (untuk melatih model) dan satu set pengujian (untuk memperkirakan kinerja generalisasi). Sebagai awal cepat untuk melakukan resampling dan benchmarking dengan package mlr3, kita menunjukkan contoh singkat bagaimana melakukannya dengan fungsi convenience resample() dan benchmark() . Secara khusus, kita menunjukkan cara memperkirakan kinerja generalisasi learner pada tugas yang diberikan dengan metode holdout menggunakan resample() dan cara menggunakan benchmark() untuk membandingkan dua learner pada task.
+
+kita mendefinisikan objek Task dan Learner sebagai berikut:
+
+```{r}
+task_diabetes = TaskClassif$new(id="diabetes",
+                             backend = diabetes,
+                             target = "Outcome",positive ="Case")
+```
+Argumen utama dalam fungsi TaskClassif$new adalah sebagai berikut:
+
+`id` yang merupakan nama dari task (bisa diisi dengan nama apapun)
+`backend` adalah data yang ingin dimodelkan dengan catatan peubah respon-nya harus berupa peubah numerik
+`target` adalah nama kolom yang dijadikan peubah respon
+
+Berikut adalah model-model yang akan digunakan beserta argumen di dalam fungsi learn:
+
+Regresi Logistik - "classif.log_reg" - library(stats)
+Linear Discriminant Analysis - "classif.lda" - library(MASS)
+
+Sebagai catatan, untuk model-model yang digunakan dalam mlr3 berasal dari package-package lain sehingga package-package tersebut perlu install terlebih dahulu. Kemudian, untuk model klasifikasi (respon biner atau multiclass) selalu diawali dengan kata "classif.". Fungsi lrn juga memungkinkan untuk memasukan argumen-argumen dari package asalnya (termasuk hiperparameter).
+
+Pada praktikum ini kita menggunakan model Regresi Logistik dan Linear Discriminant Analysis.
+
+### Learner
+
+```{r}
+learner1 = lrn("classif.log_reg", predict_type = "prob")
+learner1
+```
+```{r}
+learner2 = lrn("classif.lda", predict_type = "prob")
+learner2
+```
+Berdasarkan output diatas argumen-argumen yang bisa digunakan dalam `classif.log_reg` dan `classif.lda` ada di kolom id. Selanjutnya, kolom class menunjukkan tipe data argumen tersebut. Kolom lower, upper dan levels merupakan isi/nilai dari argumen tersebut. Informasi ini bisa digunakan untuk melakukan tuning hyperparameter.
+
+untuk memeriksa pengukuran dari klasifikasi ini dapat digunakan perintah berikut:
+```{r}
+msr_tbl = as.data.table(mlr_measures)
+msr_tbl[1:5, .(key, label, task_type)]
+```
+```{r}
+msr_tbl[1:5, .(key, packages, predict_type, task_properties)]
+```
+
+```{r}
+as.data.table(lrn("classif.log_reg")$param_set)
+```
+```{r}
+as.data.table(lrn("classif.lda")$param_set)
+```
+
+### Pengukuran
+
+Kode di bawah ini merupakan contoh penggunaan `holdout` (specified using `rsmp("holdout")`) untuk regresi logistik
+
+```{r}
+resampling = rsmp("holdout")
+rr = resample(task = task_diabetes, learner = learner1, resampling = resampling)
+rr$aggregate(msr("classif.acc"))
+```
+Kode di bawah ini merupakan contoh penggunaan `holdout` (specified using `rsmp("holdout")`) untuk LDA
+
+```{r}
+resampling = rsmp("holdout")
+rr = resample(task = task_diabetes, learner = learner2, resampling = resampling)
+rr$aggregate(msr("classif.acc"))
+```
+The `benchmark()` function juga menggunakan `resample()` function untuk mengestimasi performa berdasarkan strategi resampling. Sebagai contoh dapat dilihat minimal kode di bawah ini untuk membanding hasil classification accuracy regresi logistik:
+
+```{r}
+lrns = c(learner1, lrn("classif.featureless"))
+d = benchmark_grid(task = task_diabetes, learners = lrns, resampling = resampling)
+bmr = benchmark(design = d)
+acc = bmr$aggregate(msr("classif.acc"))
+acc[, .(task_id, learner_id, classif.acc)]
+```
+
+
+```{r}
+lrns = c(learner2, lrn("classif.featureless"))
+d = benchmark_grid(task = task_diabetes, learners = lrns, resampling = resampling)
+bmr = benchmark(design = d)
+acc = bmr$aggregate(msr("classif.acc"))
+acc[, .(task_id, learner_id, classif.acc)]
+```
+# Apa itu Resampling?
+
+Menurut Japkowicz and Shah (2011), Strategi resampling berbeda dengan mempartisi data menjadi training set dan test set. Sebagai contoh metode ini k-fold cross validation secara acak mempartisi data menjadi sejumlah k subset, yang disebut fold seperti yang ditunjukkan pada gambar. Kemudian k model di training pada proses pelatihan data dengan k-1 fold yang mana sisa nya digunakan pada data uji pada k iterasi. Hasil Performa k di estimasi dari setiap fold adalah rata-rata untuk menghitung estimasi performa.
+
+Strategi resampling lainnya yang diketahui adalah subsampling dan bootsraping. subsampling dikenal sebagai repeated holdout pad resampling yang melakukan perulangan holdout metode, dan membuat banyak split train-test dengan mempertimbangkan rasio pengamatan untuk dimasukkan dalam set pelatihan.
+
+Sementara Bootstrap adalah metode berbasis resampling data sampel dengan syarat pengembalian pada datanya dalam menyelesaikan statistik ukuran suatu sampel dengan harapan sampel tersebut mewakili data populasi sebenarnya, biasanya ukuran resampling diambil secara ribuan kali agar dapat mewakili data populasinya.Beberapa observasi dalam training set mungkin muncul lebih dari satu kali, sedangkan observasi lain yang tidak muncul sama sekali digunakan sebagai test set. 
+
+Pilihan strategi resampling biasanya bergantung pada tugas spesifik yang ada dan tujuan penilaian kinerja. Properti dan perangkap teknik resampling yang berbeda telah dipelajari secara luas dan dibahas dalam literatur, lihat misalnya, Bengio dan Grandvalet (2003), Molinaro, Simon, dan Pfeiffer (2005), Kim (2009), Bischl et al. (2012).
+
+![]("C:/Users/ardik/OneDrive/Dokumen/cross-validation.jpg")
+
+Gambar di atas menunjukkan 3-fold cross validation.
+
+## Strategi Resampling
+
+### Query
+
+berikut beberapa perintah query yang digunakan dalam package mlr3
+
+```{r}
+as.data.table(mlr_resamplings)
+```
+## Construction
+
+Setelah kita memilih query apa yang akan digunakan dalam teknik resampling maka selanjutnya adalah membangun resampling melalui fungsi `rsmp()`  
+
+```{r}
+resampling = rsmp("holdout")
+print(resampling)
+```
+Secara default, holdout metode akan menggunakan 2/3 data sebagai data training dan 1/3 sebagai data test. kita dapat mengatur lebih spesifik lagi parameter rasui untuk holdout dengan meng-update rasio. sebagai contoh kita membangun objek resampling untuk holdout dengan split 80:20 (lihat kode di bawah ini)
+```{r}
+resampling = rsmp("holdout", ratio = 0.8)
+```
+
+kemudian di update menjadi 50:50
+```{r}
+resampling$param_set$values = list(ratio = 0.5)
+```
+
+Holdout hanya mengestimasi performa dengan menggunakan single set atau satu set. Untuk mendapatkan estimasi kinerja yang lebih andal dengan memanfaatkan semua data yang tersedia, kita dapat menggunakan strategi resampling lainnya. Misalnya, menyiapkan 10-fold cross-validation melalui
+
+```{r}
+resampling = rsmp("cv", folds = 10)
+```
+
+Secara default, bidang `$is_instantiated` dari objek Resampling yang dibuat seperti yang ditunjukkan di atas disetel ke FALSE. Ini berarti bahwa strategi resampling belum diterapkan pada suatu Task, yang mana, pemisahan train-test tidak terdapat dalam objek Resampling.
+
+## Instantiation
+
+Untuk menghasilkan pemisahan uji train untuk task tertentu, kita perlu membuat instance strategi resampling dengan memanggil metode `$instantiate()` dari objek Resampling yang dibangun sebelumnya pada Task. hal ini akan memanifestasikan partisi tetap dan menyimpan indeks baris untuk set pelatihan dan pengujian langsung di objek Resampling. Kita dapat mengakses baris ini melalui metode `$train_set()` dan `$test_set()` :
+
+```{r}
+resampling = rsmp("holdout", ratio = 0.8)
+resampling$instantiate(task_diabetes)
+train_ids = resampling$train_set(1)
+test_ids = resampling$test_set(1)
+str(train_ids)
+```
+```{r}
+str(test_ids)
+```
+Instansiasi sangat relevan adalah ketika tujuannya adalah untuk membandingkan beberapa learner secara adil. Di sini, sangat penting untuk menggunakan pemisahan tes-latihan yang sama untuk mendapatkan hasil yang sebanding. Artinya, kita perlu memastikan bahwa semua learner yang akan dibandingkan menggunakan data pelatihan yang sama untuk membuat model dan bahwa learner menggunakan data pengujian yang sama untuk mengevaluasi kinerja model.
+
+## Eksekusi
+
+Memanggil fungsi `resample()` pada Task, learner, dan objek resampling yang dibangun akan mengembalikan objek `ResampleResult` yang memuat semua informasi yang diperlukan untuk memperkirakan performa secara umum. Secara khusus, fungsi tersebut akan menggunakan learner secara internal untuk melatih model untuk setiap rangkaian pelatihan yang ditentukan oleh strategi resampling dan menyimpan prediksi model dari setiap rangkaian pengujian. Kita dapat menerapkan fungsi `print` atau `as.data.table` ke objek `ResampleResult` untuk mendapatkan beberapa informasi dasar:
+
+```{r}
+resampling = rsmp("cv", folds = 4)
+rr = resample(task_diabetes, learner1, resampling)
+print(rr)
+```
+```{r}
+as.data.table(rr)
+```
+
+Di sini, kita menggunakan 4-fold cross-validation sebagai strategi resampling. Objek `ResampleResult` yang dihasilkan (disimpan sebagai rr) menyediakan berbagai metode untuk mengakses informasi yang disimpan. Dua metode yang paling relevan untuk penilaian kinerja adalah `$score()` dan `$aggregate()`.
+
+Dalam contoh kode di bawah ini, secara eksplisit menggunakan akurasi klasifikasi (`classif.acc`) sebagai ukuran kinerja dan meneruskannya ke metode `$score()` untuk mendapatkan perkiraan kinerja setiap iterasi resampling secara terpisah:
+
+```{r}
+acc = rr$score(msr("classif.acc"))
+acc[, .(iteration, classif.acc)]
+```
+
+Demikian pula, kita bisa meneruskan objek Measure ke metode `$aggregate()` untuk menghitung skor agregat di semua iterasi resampling. Jenis agregasi biasanya ditentukan oleh objek Ukur. Ada dua pendekatan untuk menggabungkan skor di seluruh iterasi resampling: Yang pertama disebut sebagai rata-rata makro (macro average), yang pertama menghitung ukuran di setiap iterasi resampling secara terpisah, lalu rata-rata skor ini di semua iterasi. Pendekatan kedua adalah rata-rata mikro (micro average), yang mengumpulkan semua prediksi lintas iterasi resampling menjadi satu objek Prediksi dan menghitung ukurannya secara langsung. Akurasi klasifikasi `msr("classif.acc")` menggunakan rata-rata makro secara default, tetapi rata-rata mikro dapat dihitung juga dengan menentukan argumen rata-rata:
+
+```{r}
+rr$aggregate(msr("classif.acc"))
+```
+```{r}
+rr$aggregate(msr("classif.acc", average = "micro"))
+```
+## Inspeksi
+
+```{r}
+rrdt = as.data.table(rr)
+rrdt
+```
+
+```{r}
+rrdt$prediction
+```
+
+```{r}
+all.equal(rrdt$prediction, rr$predictions())
+```
+```{r}
+pred = rr$prediction()
+pred
+```
+```{r}
+pred$score(msr("classif.acc"))
+```
+# Resampling with Stratification and Grouping
+
+Di mlr3, kita dapat menetapkan peran khusus ke fitur yang terdapat dalam data dengan mengonfigurasi bidang `$col_roles` yang sesuai dari sebuah Task. Dua peran kolom relevan yang akan memengaruhi perilaku strategi resampling adalah "grup" atau "strata atau stratum". Pada contoh kali ini digunakan dataset "penguins".
+
+![]("C:/Users/ardik/OneDrive/Dokumen/loobject.jpg")
+
+Illustration of the train-test splits of a leave-one-object-out cross-validation with 3 groups of observations (highlighted by different colors)
+
+```{r}
+task_grp = tsk("penguins")
+task_grp$col_roles$group = "year"
+r = rsmp("loo")
+r$instantiate(task_grp)
+
+table(task_grp$data(cols = "year"))
+```
+```{r}
+table(task_grp$data(rows = r$test_set(1), cols = "year"))
+```
+```{r}
+table(task_grp$data(rows = r$test_set(2), cols = "year"))
+```
+```{r}
+table(task_grp$data(rows = r$test_set(3), cols = "year"))
+```
+Peran kolom lain yang tersedia di mlr3 adalah "strata", yang menerapkan pengambilan sampel bertingkat. Stratified sampling memastikan bahwa satu atau lebih fitur diskrit dalam set pelatihan dan pengujian akan memiliki distribusi yang sama seperti pada tugas awal yang berisi semua pengamatan. Ini sangat berguna ketika fitur diskrit sangat tidak seimbang (imbalance dataset) dan kita ingin memastikan bahwa distribusi fitur tersebut serupa di setiap iterasi resampling. Stratifikasi umumnya digunakan untuk tugas klasifikasi yang tidak seimbang di mana kelas fitur target tidak seimbang
+
+![]("C:/Users/ardik/OneDrive/Dokumen/stratification.jpg")
+
+Pada contoh di bawah ini kita menerapkam stratum pada dataset diabetes
+- Sebelum dilakukan stratum:
+```{r}
+prop.table(table(task_diabetes$data(cols = "Outcome")))
+```
+```{r}
+r = rsmp("cv", folds = 3)
+r$instantiate(task_diabetes)
+prop.table(table(task_diabetes$data(rows = r$test_set(1), cols = "Outcome")))
+```
+```{r}
+prop.table(table(task_diabetes$data(rows = r$test_set(2), cols = "Outcome")))
+```
+```{r}
+prop.table(table(task_diabetes$data(rows = r$test_set(3), cols = "Outcome")))
+```
+Menggunakan Stratum:
+
+```{r}
+task_diabetes$col_roles$stratum = "Outcome"
+r = rsmp("cv", folds = 3)
+r$instantiate(task_diabetes)
+
+prop.table(table(task_diabetes$data(rows = r$test_set(1), cols = "Outcome")))
+```
+```{r}
+prop.table(table(task_diabetes$data(rows = r$test_set(2), cols = "Outcome")))
+```
+```{r}
+prop.table(table(task_diabetes$data(rows = r$test_set(3), cols = "Outcome")))
+```
+# Plotting Resampling
+
+```{r echo=FALSE}
+resampling = rsmp("bootstrap")
+rr = resample(task_diabetes, learner1, resampling)
+
+library(mlr3viz)
+autoplot(rr, measure = msr("classif.acc"), type = "boxplot")
+autoplot(rr, measure = msr("classif.acc"), type = "histogram")
+```
+
+Histogram berguna untuk mengukur secara visual varian dari hasil kinerja di seluruh iterasi resampling, sedangkan boxplot sering digunakan saat banyak learner dibandingkan secara berdampingan.
+
+Kita juga dapat memvisualisasikan permukaan prediksi 2 dimensi dari masing-masing model di setiap iterasi resampling jika tugas dibatasi pada dua fitur:
+
+```{r echo=FALSE}
+task_diabetes$select(c("Pregnancies", "SkinThickness"))
+resampling = rsmp("cv", folds = 4)
+rr = resample(task_diabetes, learner1, resampling, store_models = TRUE)
+autoplot(rr, type = "prediction")
+```
+
+# ROC Analysis
+
+Analisis ROC (Receiver Operating Characteristic) banyak digunakan untuk mengevaluasi pengklasifikasi biner. Meskipun ada ekstensi untuk pengklasifikasi multikelas (lihat misalnya Hand and Till (2001)), kita hanya akan membahas kasus klasifikasi biner yang jauh lebih mudah di sini. Untuk pengklasifikasi biner yang memprediksi kelas diskrit, kita dapat menghitung confusion matrix yang menghitung besaran berikut (lihat juga Gambar 3.6):
+
+True positives (TP): Contoh yang benar-benar positif dan diklasifikasikan dengan benar sebagai positif.
+True Negatives (TN): Contoh yang benar-benar negatif dan diklasifikasikan dengan benar sebagai negatif.
+Positif palsu (FP): Contoh yang sebenarnya negatif tetapi salah diklasifikasikan sebagai positif.
+Negatif Palsu (FN): Contoh yang sebenarnya positif tetapi salah diklasifikasikan sebagai negatif.
+
+## Confusion Matrix-based Measures
+
+Beberapa ukuran kinerja umum yang didasarkan pada confusion matix dan mengukur kemampuan pengklasifikasi untuk memisahkan dua kelas (yaitu, kinerja diskriminasi) meliputi (lihat juga Gambar di bawah ini untuk definisinya berdasarkan TP, FP, TN, dan FN):
+
+* True Positive Rate (TPR), Sensitivity or Recall: How many of the true positives did we predict as positive?
+* True Negative Rate (TNR) or Specificity: How many of the true negatives did we predict as negative?
+* False Positive Rate (FPR), or 1 - Specificity: How many of the true negatives did we predict as positive?
+* Positive Predictive Value (PPV) or Precision: If we predict positive how likely is it a true positive?
+* Negative Predictive Value (NPV): If we predict negative how likely is it a true negative?
+
+Akurasi (ACC): Proporsi instance yang diklasifikasikan dengan benar dari jumlah total instance.
+F1-score: The harmonic mean of precision and recall, which balances the trade-off between precision and recall.
+
+![]("C:/Users/ardik/OneDrive/Dokumen/confusion_matrix.jpg")
+
+```{r}
+
+splits = partition(task_diabetes, ratio = 0.8)
+
+learner1$train(task_diabetes, splits$train)
+pred = learner1$predict(task_diabetes, splits$test)
+pred$confusion
+```
+Package `mlr3measures` memungkinkan untuk menghitung tambahan beberapa pengukuran berbasis confusion matrix yang umum menggunakan fungsi Confusion_matrix :
+
+```{r}
+mlr3measures::confusion_matrix(truth = pred$truth,
+  response = pred$response, positive = task_diabetes$positive)
+```
+Jika pengklasifikasi biner memprediksi probabilitas alih-alih kelas diskrit, kita dapat secara sewenang-wenang menetapkan ambang batas untuk memotong probabilitas dan menugaskannya ke kelas positif dan negatif. Dalam hal kinerja klasifikasi, umumnya sulit untuk mencapai TPR yang tinggi dan FPR yang rendah secara bersamaan karena sering terjadi trade-off antara kedua tarif tersebut. Meningkatkan ambang batas untuk mengidentifikasi kasus positif, mengarah ke jumlah prediksi negatif yang lebih tinggi dan prediksi positif yang lebih sedikit. Akibatnya, FPR biasanya lebih baik (lebih rendah), tetapi dengan nilai TPR yang lebih buruk (lebih rendah). Misalnya, dalam kasus khusus di mana ambang batas ditetapkan terlalu tinggi dan tidak ada instance yang diprediksi sebagai positif, matriks konfusi menunjukkan nol positif sejati (tidak ada instance yang benar-benar positif dan diklasifikasikan dengan benar sebagai positif) dan nol positif palsu (tidak ada instance yang sebenarnya negatif tetapi salah diklasifikasikan sebagai positif). Oleh karena itu, FPR dan TPR juga nol karena tidak ada false positive dan nol true positive. Sebaliknya, menurunkan ambang batas untuk mengidentifikasi kasus positif mungkin tidak pernah memprediksi kelas negatif dan dapat meningkatkan (memperbaiki) TPR, tetapi dengan biaya FPR yang lebih buruk (lebih tinggi). Misalnya, di bawah ini kami menetapkan ambang batas (*Threshold*) ke 0,99 dan 0,01:
+
+```{r}
+pred$set_threshold(0.99)
+mlr3measures::confusion_matrix(pred$truth, pred$response, task_diabetes$positive)
+```
+```{r}
+pred$set_threshold(0.01)
+mlr3measures::confusion_matrix(pred$truth, pred$response, task_diabetes$positive)
+```
+## ROC Curve
+
+```{r}
+thresholds = sort(pred$prob[,1])
+
+rocvals = data.table::rbindlist(lapply(thresholds, function(t) {
+  pred$set_threshold(t)
+  data.frame(
+    threshold = t,
+    FPR = pred$score(msr("classif.fpr")),
+    TPR = pred$score(msr("classif.tpr"))
+  )
+}))
+
+head(rocvals)
+```
+```{r echo=FALSE}
+library(ggplot2)
+ggplot(rocvals, aes(FPR, TPR)) +
+  geom_point() +
+  geom_path(color = "darkred") +
+  geom_abline(linetype = "dashed") +
+  coord_fixed(xlim = c(0, 1), ylim = c(0, 1)) +
+  labs(
+    title = "Manually constructed ROC curve",
+    x = "1 - Specificity (FPR)",
+    y = "Sensitivity (TPR)"
+  ) +
+  theme_bw()
+```
+
+Ukuran kinerja yang dapat diturunkan dari kurva ROC adalah area di bawah kurva the area under the curve (AUC). Semakin tinggi nilai AUC, semakin baik kinerjanya, sedangkan pengklasifikasi acak akan menghasilkan AUC sebesar 0,5. AUC dapat diartikan sebagai probabilitas bahwa instance positif yang dipilih secara acak diberi peringkat lebih tinggi (dalam artian mendapat probabilitas prediksi yang lebih tinggi untuk menjadi kelas positif) oleh model klasifikasi daripada instance negatif yang dipilih secara acak.
+
+# Melanjutkan Teknik Resampling pada Regresi Logistik dan LDA
+
+```{r}
+standardize <- po("scale")
+# Jika dup_size=1, jumlah amatan kelas  minoritas
+#bertambah sebanyak 
+#1*(jumlah amatan awal)+jumlah amatan awal
+
+smote <- po("smote",dup_size=1)
+```
+
+```{r}
+standardize$train(list(task_diabetes))[[1]]$data() %>% glimpse
+```
+```{r}
+smote$train(list(task_diabetes))[[1]]$data() %>% count(Outcome)
+```
+```{r}
+reglog <- GraphLearner$new(standardize %>>% smote %>>% lrn("classif.log_reg"))
+reglog
+```
+```{r}
+lda <- GraphLearner$new(standardize %>>%
+smote %>>%                          lrn("classif.lda",method="moment"))
+lda
+```
+## Intepretasi Model
+
+Tahap ini biasanya dilakukan untuk melihat bagaimana pengaruh peubah-peubah prediktor terhadap respon menurut masing-masing model. Misalnya saja dalam regresi logistik besarnya nilai koefisien,odds ratio dan p-value bisa menggambarkan bagaimana pengaruh peubah prediktor terhadap respon.
+
+Sebelum kita bisa memperoleh interpretasi dari suatu model dalam mlr3, kita perlu melakukan proses modeling/training terlebih dahulu dengan menggunakan keseluruhan data. Kemudian, Untuk menampilkan nilai koefisien dan p-value pada model regresi logistik, kita bisa menggunakan fungsi summary.
+
+### Regresi Logistik
+```{r}
+# train model dengan keseluruhan data
+reglog$train(task = task_diabetes) 
+summary(reglog$model$classif.log_reg$model)
+```
+Selain fungsi summary, kita juga bisa menggunakan fungsi tidy dari package broom untuk menampilkan hal yang sama. Hanya saja fungsi tidy menampilkan nilai koefisien dan p-value dalam bentuk data.frame
+
+```{r}
+broom::tidy(reglog$model$classif.log_reg$model)
+```
+
+Kita bisa menambahkan odds ratio dengan menggunakan sintaks berikut:
+
+```{r}
+broom::tidy(reglog$model$classif.log_reg$model) %>% 
+  mutate(OddsRatio = exp(estimate))
+```
+```{r}
+# menampilkan informasi tambahan tentang model
+broom::glance(reglog$model$classif.log_reg$model)
+```
+Contoh Interpretasi odds ratio:
+
+Age : setiap penambahan Age sebesar 1 tahun maka akan meningkatkan resiko diabetes sebesar 1.2 kali.
+
+Insulin : setiap penambahan Insulin sebesar 1 satuan maka akan menurunkan resiko diabetes sebesar 0.8 kali.
+
+## LDA
+
+```{r}
+# train model dengan keseluruhan data
+lda$train(task = task_diabetes)
+```
+
+```{r}
+coef_lda <- coef(lda$model$classif.lda$model)
+coef_lda
+```
+
+
+```{r}
+predictedLD <- predict(lda$model$classif.lda$model,newdata = diabetes)
+plotLD <- data.frame(predictedLD$x,class=predictedLD$class)
+glimpse(plotLD)
+```
+```{r}
+plotLD %>% count(class)
+```
+```{r echo=FALSE}
+ggpubr::ggboxplot(plotLD,x="class",y="LD1",fill="class")
+```
+
+Selanjutnya lakukan teknik resampling yang sudah di jelaskan sebelumnya dan lakukan prediksi terhadap masing-masing kelas.
+
+
+
+
+
+
